@@ -25,11 +25,11 @@ The repository currently includes:
 
 ## Functionality:
 
-* Easily editable - a good base for any steem discord related bot.
+* Easily editable - a good base for any steem discord related bot;
 * Easily add custom commands by editing the command() function;
 * Submit a post by posting a message starting with *https://steemit.com* or *https://busy.org* in an allowed channel;
-* Accept a post by reacting to it - by default use :ballot_box_with_check: on a given post;
-* Sort accepted posts into correct channels by the tag they were posted under;
+* Accept a post by reacting to it. By default, use :ballot_box_with_check: on a given post;
+* Sort accepted posts into correct channels by the tags they were posted under;
 * Remove accepted posts older than x hours;
 
 # stbot
@@ -41,9 +41,8 @@ The repository currently includes:
 
 #### Check various stats about a steem post and check how much of the payout was given by bots.
 * **Total Payout** - Total value of the payout for a given post in $ (Neither USD nor SBD, but rather the $ steem shows under the post).
-* **Organic** - The ammount given by non-bot users.
-* **Bots** - The ammount given by bot users.
-* **Net Votes** - Total ammount of votes, regardles of who the user is.
+* **Organic** - The amount given by non-bot users.
+* **Bots** - The amount given by bot users.
+* **Net Votes** - Total amount of votes, regardless of who the user is.
 * **Comments** - Number of comments under the post.
 * **Age** - The age of the post. 
-
