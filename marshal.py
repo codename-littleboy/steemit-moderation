@@ -339,7 +339,8 @@ def getPendingVotes():
 			 	thumbsUp = 0
 			 	for reaction in y.reactions:
 			 		if reaction.emoji == Emoji(name="thumbsup", require_colons=False):
-			 			thumbsUp += 1
+			 			thumbsUp = reaction.count
+			 			break
 
 	 			postData["tup"] = thumbsUp
 	 			postData["csvLine"] = getCsvLine(fullLink)
@@ -426,6 +427,13 @@ def is_mod(user):
 		else:
 			return False
 
+def can_vote(user):
+	auth_roles = []
+	for x in user.roles:
+		auth_roles.append(x.name.lower())
+
+	return "verified" in auth_roles
+
 ######################
 # DEFINE EVENTS HERE #
 ######################
@@ -461,6 +469,12 @@ async def on_reaction_add(reaction, user):
 	if is_mod(user):
 		if reaction.emoji == '☑' and reaction.message.channel.id in [channel['id_community'] for channel in channels]:
 			await authorize_post(reaction.message, user)
+	if not can_vote(user) and reaction.emoji == Emoji(name="thumbsup", require_colons=False) and reaction.message.channel.id in [channel['id_verified'] for channel in channels]:
+		if reaction.count == 0:
+			reaction.message.reactions.remove(reaction)
+		else:
+			reaction.message.reactions[reaction].count -= 1
+
 
 if __name__ == '__main__': # Starting the bot.
 	client.run(os.getenv('TOKEN'))
