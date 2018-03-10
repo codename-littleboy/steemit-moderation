@@ -14,7 +14,7 @@ import os
 # Here you can modify the bot's prefix and description and wether it sends help in direct messages or not. @client.command is strongly discouraged, edit your commands into the command() function instead.
 client = Bot(description="Server-Management-Bot", command_prefix='!', pm_help = True)
 
-s = Steem()
+s = Steem() # TODO: for voting add private key here
 steemd_nodes = [
     'https://api.steemit.com/',
     'https://gtg.steem.house:8090/',
@@ -225,6 +225,20 @@ async def authorize_post(msg, user):
 		await client.send_message(client.get_channel(dest_channel), embed=embed) # send embed
 		await client.send_message(client.get_channel(dest_channel), content="This post was accepted by <@" + user.id + ">" ) # send comment
 		
+		# CSV Data Generation
+		# Array of data: moderator, post link, nominator, post author, time of approval, post publish date, payout at approval
+		link = str(msg.content).split(' ')[0]
+		csvDataArray = []
+		csvDataArray.append(user.id)
+		csvDataArray.append(link)
+		csvDataArray.append(msg.author.id)
+		csvDataArray.append(p.author)
+		csvDataArray.append(timeToStringTime(datetime.datetime.now()))
+		publishDate = datetime.datetime.now() - p.time_elapsed
+		csvDataArray.append(timeToStringDate(publishDate))
+		csvDataArray.append(p.reward)
+		addApproveCsv(csvDataArray)
+		
 		# delete old messages
 		for msg_id in react_dict[msg.id]:
 			msg = await client.get_message(msg.channel, msg_id)
@@ -275,6 +289,129 @@ async def check_age(msg,low,high):
 		await asyncio.sleep(6)
 		await client.delete_message(age_error)
 		return False
+
+# Run the approve function daily
+async def dailyVoteApproved():
+	while True:
+		asyncio.sleep(60)
+		currentTime = datetime.datetime.now()
+		if currentTime.hour == 0 and currentTime.minute == 0:
+			voteApprovedPosts()
+
+# Get the base weight to use
+def getVPPerVote(pending):
+	totalDiscordVotes = 0
+	for post in pending:
+		totalDiscordVotes += post["tup"]
+
+	return 1000 / totalDiscordVotes
+
+# Get the weight to use for the current post
+def getVP(perVote, post):
+	return post["tup"] * perVote
+
+# Vote approved posts within 24 hours
+def voteApprovedPosts():
+	pendingVotes = getPendingVotes()
+	votingPowerPerVote = getVPPerVote(pendingVotes)
+	voterAccountName = "" # TODO: insert actual name of the voting user
+
+	for post in pendingVotes:
+		currentVP = getVP(votingPowerPerVote, post)
+		post["post"].vote(currentVP, voter=voterAccountName)
+		addVotedCsv(post["csvLine"])
+
+# Get the posts waiting to be upvoted
+def getPendingVotes():
+	result = []
+	chn = []
+	for x in client.get_all_channels():
+		if x.id in [channel['id_verified'] for channel in channels]: #channels_list:
+			chn.append(x)
+	for x in chn:
+		async for y in client.logs_from(x,limit=100,before=datetime.datetime.now()):
+			if not y.content.startsWith("https://steemit.com") or len(y.embeds) > 0: continue
+				fullLink = str(msg.content).split(' ')[0]
+				postLink = fullLink.split('@')[1]
+				steemitPost = Post(postLink)
+				postData = {}
+				postData["post"] = steemitPost
+			 	thumbsUp = 0
+			 	for reaction in y.reactions:
+			 		if reaction.emoji == Emoji(name="thumbsup", require_colons=False):
+			 			thumbsUp += 1
+
+	 			postData["tup"] = thumbsUp
+	 			postData["csvLine"] = getCsvLine(fullLink)
+	 			if postData["csvLine"] != "" and timeValidForVote(postData["csvLine"].split(";")[4]): result.append(postData)
+
+	return result
+
+# Check if the post is valid  (within 24 hours of voting) for upvoting
+def timeValidForVote(approvalTime):
+	time = datetime.strptime(approvalTime, "%Y_%m_%d_%H_%M_%S");
+	timeLimit = time + datetime.timedelta(days=1)
+	return datetime.datetime.now() <= timeLimit
+
+# Get an approved post's data based on the posted link
+def getCsvLine(postLink):
+	checkAndSetupCsv()
+		if not os.path.exists("csv/approved.csv"):
+			return ""
+
+		fd = open("csv/approved.csv", "r")
+		content = fs.readlines()
+		for line in content:
+			data = line.split(";")
+			link = data[1]
+			if link == postLink:
+				fd.close()
+				return line
+
+		fd.close()
+
+		return ""
+
+# Convert a date to string date
+def timeToStringDate(date):
+	return date.strftime("%Y_%m_%d")
+
+# Convert a date to string time
+def timeToStringTime(time):
+	return time.strftime("%Y_%m_%d_%H_%M_%S")
+
+# Get the current date in string format
+def getCurrentDate():
+	return datetime.datetime.now().strftime("%Y_%m_%d")
+
+# Get the name of the current csv file to store voted posts in
+def getVotedFileName():
+	fileName = "csv/%s.csv" % (getCurrentDate())
+	return fileName
+
+# Add requested data to the voted posts csv file
+def addVotedCsv(arrayOfData)
+	# Array of data: moderator, post link, nominator, post author, time of approval, post publish, payout at approval
+	dataLine = ";".join(arrayOfData)
+	checkAndSetupCsv()
+	votedFile = getVotedFileName()
+	csvFile = open(votedFile, "a")
+	csvFile.write(dataLine + "\n")
+	csvFile.close()
+
+# Add requested data to the approved post csv file
+def addApproveCsv(arrayOfData):
+	# Array of data: moderator, post link, nominator, post author, time of approval, post publish, payout at approval
+	dataLine = ";".join(arrayOfData)
+	checkAndSetupCsv()
+	csvFile = open("csv/approved.csv", "a")
+	csvFile.write(dataLine + "\n")
+	csvFile.close()
+
+# Check if csv folder exists, if not create it
+def checkAndSetupCsv():
+	if not os.path.isdir("csv"):
+		os.makedirs("csv")
 
 # Returns true if message's author has a moderating_roles role.
 def is_mod(user): 
@@ -327,3 +464,4 @@ async def on_reaction_add(reaction, user):
 
 if __name__ == '__main__': # Starting the bot.
 	client.run(os.getenv('TOKEN'))
+	dailyVoteApproved() # Start upvoting posts at the start of each new day
